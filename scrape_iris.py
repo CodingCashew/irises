@@ -9,76 +9,106 @@ fields = ["Name", "1-Class", "2-Hybridizer", "3-Year", "4-Height", "5-Season", "
 # Function to scrape data from a single plant page
 def scrape_plant_data(url):
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1'
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+        "Referer": "https://americanenglishfordevs.com",
+        "Accept-Language": "en-US,en;q=0.9",
     }
 
-    session = requests.Session()
-    session.headers.update(headers)
-
-    response = session.get(url, headers=headers)
+    response = requests.get(url, headers=headers)
 
     if response.status_code != 200:
         print(f"Error fetching {url}: {response.status_code}")
         return None
 
-    print('response: ')
-    print(response);
-
     soup = BeautifulSoup(response.content, 'html.parser')
 
     # Extract each field from the HTML
     plant_data = {}
-    # plant_data["Name"] = soup.find("h1").text.strip()  # Assuming name is in <h1> tag
 
-    # Define a helper function to get text from the second <td> based on a label in the first <td>
     def get_data_by_label(label):
-        print('label: ' + label)
+        rows = soup.find_all("tr")
+        for row in rows:
+            tds = row.find_all("td")
+            if len(tds) > 1 and label in tds[0].get_text(strip=True):
+                formatted_value = tds[1].get_text(strip=True)
 
-        row = soup.find("tr", string=lambda text: text and label in text)  # Find the <tr> containing the label
-        print(row)
-        if row:
-            data_td = row.find_all("td")  # Find all <td> in the row
-            if len(data_td) > 1:
-                return data_td[1].text.strip()  # Return text from the second <td>
-        return "N/A"  # Return "N/A" if not found or no data
+                if label == "Classification:":
+                    start = formatted_value.find('(')
+                    end = formatted_value.find(')')
+                    if start != -1 and end != -1:
+                        formatted_value = formatted_value[start+1:end]
+                    print('formatted value: ', formatted_value)
 
-    # Now use this helper function to populate your dictionary fields
+                if (label == "Bloom Season:"):
+                    formatted_value = ', '.join(tds[1].stripped_strings)
+                    print('formatted value: ', formatted_value)
+                
+                return formatted_value
+        return "N/A"
+
     plant_data["1-Class"] = get_data_by_label("Classification:")
-    print(plant_data["1-Class"])
-    # plant_data["2-Hybridizer"] = get_data_by_label("Hybridizer:")
-    # plant_data["3-Year"] = get_data_by_label("Year Of Registration:")
+    plant_data["2-Hybridizer"] = get_data_by_label("Hybridizer:")
+    plant_data["3-Year"] = get_data_by_label("Year Of Introduction (May Differ From Registry):")
+    if plant_data["3-Year"] == "N/A":
+        plant_data["3-Year"] = get_data_by_label("Year Of Registration:")
+    plant_data["4-Height"] = get_data_by_label("Registered Height:")
+    plant_data["5-Season"] = get_data_by_label("Bloom Season:")
+    plant_data["6-ReBloom"] = get_data_by_label("Rebloom:")
+    if plant_data["6-ReBloom"] == "N/A":
+        plant_data["6-ReBloom"] = "No"
+    else:
+        plant_data["6-ReBloom"] = "Yes"
+    plant_data["7-Style"] = get_data_by_label("Flower Pattern:")
+    if plant_data["7-Style"] == "N/A":
+        plant_data["7-Style"] = get_data_by_label("Flower Form:")
+    print(plant_data["7-Style"])
+    plant_data["8-Fragrant"] = get_data_by_label("Fragrance:")
+    if plant_data["8-Fragrant"] == "N/A":
+        plant_data["8-Fragrant"] = "No"
+    else:
+        plant_data["8-Fragrant"] = "Yes - " + get_data_by_label("Fragrance:")
+    print(plant_data["8-Fragrant"])
+    plant_data["10-Color"] = get_data_by_label("Bloom Color Classification:")
 
-    
 
-    # Customize these selectors based on the actual structure of each field on garden.org
-    # plant_data["1-Class"] = soup.find("div", {"data-label": "Classification:"}).text.strip()
-    # plant_data["2-Hybridizer"] = soup.find("div", {"data-label": "Hybridizer:"}).text.strip()
-    # plant_data["3-Year"] = soup.find("div", {"data-label": "Year Of Registration:"}).text.strip()
-    # plant_data["4-Height"] = soup.find("div", {"data-label": "Height"}).text.strip()
-    # plant_data["5-Season"] = soup.find("div", {"data-label": "Season"}).text.strip()
-    # plant_data["6-ReBloom"] = soup.find("div", {"data-label": "ReBloom"}).text.strip()
-    # plant_data["7-Style"] = soup.find("div", {"data-label": "Style"}).text.strip()
-    # plant_data["8-Fragrant"] = soup.find("div", {"data-label": "Fragrant"}).text.strip()
-    # plant_data["10-Color"] = soup.find("div", {"data-label": "Color"}).text.strip()
-    # plant_data["11-Description"] = soup.find("div", {"data-label": "Description"}).text.strip()
+    def format_description():
+        bloom_color_description_string = ""
+        if get_data_by_label("Bloom Color Description:") != "N/A":
+            bloom_color_description_string = "Bloom Color Description: " + get_data_by_label("Bloom Color Description:") + "\n"
+
+        beard_color_string = ""
+        if get_data_by_label("Beard Color:") != "N/A":
+            beard_color_string = " Beard Color: " + get_data_by_label("Beard Color:") + "\n"
+
+        awards_string = ""
+        if get_data_by_label("Awards:") != "N/A":
+            awards_string = " Awards: " + get_data_by_label("Awards:")
+
+        get_data_by_label("Bloom Color Description:")
+
+        description = bloom_color_description_string + beard_color_string + awards_string;
+
+
+        return description
+
+
+
+    if plant_data["2-Hybridizer"] == "Lynda Miller" or plant_data["2-Hybridizer"] == "Keith Keppel" or plant_data["2-Hybridizer"] == "Thomas Johnson" or plant_data["2-Hybridizer"] == "Paul Black":
+        plant_data["11-Description"] = format_description()
+    else:
+        plant_data["11-Description"] = ""
+
+    print(plant_data["11-Description"])
 
     return plant_data
 
-# List of URLs to scrape (for the full 1000, you’d add all URLs here)
 urls = [
     "https://garden.org/plants/view/810722/Tall-Bearded-Iris-Iris-Shadowboxer/",
-    # Add more URLs here...
 ]
 
 # Initialize an empty list to store plant data
 all_plants_data = []
 
-# Loop through each URL and scrape data
 for url in urls:
     try:
         plant_data = scrape_plant_data(url)
